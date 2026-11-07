@@ -24,21 +24,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function fetchBytes(url, label) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(url + ': HTTP ' + r.status);
+  // content-length is only a hint for the progress display: a gzip-serving host (GitHub Pages)
+  // reports the compressed size while the stream delivers the decompressed bytes.
   const total = +r.headers.get('content-length') || 0;
-  if (!r.body || !total) return new Uint8Array(await r.arrayBuffer());
+  if (!r.body) return new Uint8Array(await r.arrayBuffer());
   const reader = r.body.getReader();
-  const buf = new Uint8Array(total);
+  const chunks = [];
   let off = 0, lastPct = -1;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    if (off + value.length > buf.length) return new Uint8Array(await new Blob([buf.subarray(0, off), value]).arrayBuffer());
-    buf.set(value, off);
+    chunks.push(value);
     off += value.length;
-    const pct = Math.floor(off * 100 / total);
-    if (pct !== lastPct && pct % 10 === 0) { lastPct = pct; log(label + ' ' + pct + '%'); }
+    const pct = total ? Math.min(99, Math.floor(off * 100 / total)) : -1;
+    if (pct >= 0 && pct !== lastPct && pct % 10 === 0) { lastPct = pct; log(label + ' ' + pct + '%'); }
   }
-  return buf.subarray(0, off);
+  const buf = new Uint8Array(off);
+  let p = 0;
+  for (const c of chunks) { buf.set(c, p); p += c.length; }
+  return buf;
 }
 
 function loadModel(kind, bytes) {

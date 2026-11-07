@@ -6,7 +6,9 @@ MP4 を渡して「解析スタート」を押すと、動画を解析して **�
 
 ## ▶ デモ
 
-**https://yomei-o.github.io/lpr_analyzer_cpp/docs/**（GitHub Pages はリポジトリのルートから公開。ルートの index.html は docs/ へ転送する）
+**[https://yomei-o.github.io/lpr_analyzer_cpp/docs/](https://yomei-o.github.io/lpr_analyzer_cpp/docs/)**
+
+GitHub Pages はリポジトリのルートから公開しています。ルートの `index.html` は `docs/` へ転送します。
 
 サンプル動画 `IMG_7121.mp4`（交差点、19 秒、1080p）が最初から選ばれているので、動画を持っていなくても
 そのまま「解析スタート」で試せます。自分の MP4 はドロップかクリックで一覧に追加して選びます。
