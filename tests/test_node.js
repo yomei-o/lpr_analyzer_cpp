@@ -31,7 +31,7 @@ const EXPECTED = ['12-09', '・・・9', '・・・6', '22-56', '13-08'];
   M._az_load_spec(sp);
 
   M.FS.writeFile('/in.mp4', fs.readFileSync(video));
-  M._az_config(2.0, 0.2, 0, 1);
+  M._az_config(0.5, 0.2, 0, 1);
   const pp = M._malloc(16);
   M.stringToUTF8('/in.mp4', pp, 16);
   const state = () => JSON.parse(M.UTF8ToString(M._az_state()));

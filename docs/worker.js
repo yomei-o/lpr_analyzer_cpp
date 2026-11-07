@@ -103,7 +103,7 @@ async function analyze(m) {
     const name = 'video.mp4';
     M.FS.mount(M.WORKERFS, { blobs: [{ name, data: m.file }] }, '/input');  // no copy: read straight from the File
     const c = m.cfg || {};
-    M._az_config(c.coarse || 2.0, c.dense || 0.2, 0, c.full640 === false ? 0 : 1);
+    M._az_config(c.coarse || 0.5, c.dense || 0.2, 0, c.full640 === false ? 0 : 1);
     const pp = M._malloc(64);
     M.stringToUTF8('/input/' + name, pp, 64);
     const ok = M._az_open(pp);

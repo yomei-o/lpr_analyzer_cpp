@@ -3,9 +3,9 @@
 // The video is fed in as RGB frames with timestamps (any source: the browser's decoder via
 // mediakit, ffmpeg piping raw frames, ...). The analyzer decides which frames it wants:
 //
-//   coarse pass  every `coarse_interval` s (0.5 fps by default) the whole frame goes through the
+//   coarse pass  every `coarse_interval` s (0.5 s = 2 fps by default) the whole frame goes through the
 //                full detector (yolov8n 640) -> plates that are new to us.
-//   dense pass   while a plate is being followed, every `dense_interval` s (0.2 s by default) only a
+//   dense pass   while a plate is being followed, every `dense_interval` s (0.2 s = 5 fps) only a
 //                square window around where it is expected goes through the light detector
 //                (yolov8n 320). Small crop + small net = cheap, and the plate is seen by many
 //                slightly different frames.
@@ -32,8 +32,8 @@
 namespace lpa {
 
 struct Config {
-  double coarse_interval = 2.0;   // s between full-frame scans (0.5 fps)
-  double dense_interval = 0.2;    // s between re-reads of a followed plate
+  double coarse_interval = 0.5;   // s between full-frame scans (2 fps)
+  double dense_interval = 0.2;    // s between re-reads of a followed plate (5 fps)
   double track_timeout = 1.0;     // s unseen -> the plate has passed
   float det_conf = 0.30f;         // full-frame detector threshold
   float roi_det_conf = 0.25f;     // window detector threshold

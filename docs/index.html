@@ -83,16 +83,16 @@ td img { height: 40px; border-radius: 3px; display: block; }
     <div class="settings">
       <label>全体スキャンの間隔
         <select id="coarse">
-          <option value="1">1 秒ごと（1 fps）</option>
-          <option value="2" selected>2 秒ごと（0.5 fps）</option>
-          <option value="4">4 秒ごと（0.25 fps）</option>
+          <option value="0.5" selected>0.5 秒ごと（2 fps）</option>
+          <option value="1">1 秒ごと（1 fps、速い）</option>
+          <option value="2">2 秒ごと（0.5 fps、もっと速い）</option>
         </select>
       </label>
       <label>ナンバーを見つけた後の再解析
         <select id="dense">
-          <option value="0.1">0.1 秒ごと（精度重視）</option>
-          <option value="0.2" selected>0.2 秒ごと</option>
-          <option value="0.5">0.5 秒ごと（速度重視）</option>
+          <option value="0.1">0.1 秒ごと（10 fps、精度重視）</option>
+          <option value="0.2" selected>0.2 秒ごと（5 fps）</option>
+          <option value="0.25">0.25 秒ごと（4 fps、速度重視）</option>
         </select>
       </label>
       <label>全体スキャンの検出器

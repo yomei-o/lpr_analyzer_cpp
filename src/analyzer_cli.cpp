@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
   m.spec = &sp;
 
   lpa::Analyzer az;
-  az.cfg.coarse_interval = std::atof(arg_of(argc, argv, "--coarse", "2.0").c_str());
+  az.cfg.coarse_interval = std::atof(arg_of(argc, argv, "--coarse", "0.5").c_str());
   az.cfg.dense_interval = std::atof(arg_of(argc, argv, "--dense", "0.2").c_str());
   az.reset();
 
