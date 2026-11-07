@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LPR Analyzer — 動画から車番を検出</title>
+<style>
+:root {
+  --bg: #f5f6f8; --panel: #ffffff; --text: #1d2330; --muted: #6a7385; --line: #e1e4ea;
+  --accent: #1f6feb; --accent-text: #ffffff; --ok: #1a9850; --warn: #c27c0e; --chip: #eef1f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #11141a; --panel: #1a1f28; --text: #e6e9ef; --muted: #98a1b3; --line: #2b3240;
+          --accent: #4c8dff; --accent-text: #0b0e13; --ok: #4cc27a; --warn: #e2a33a; --chip: #232a36; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+       font: 15px/1.6 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif; }
+header { padding: 20px 24px 8px; max-width: 1280px; margin: 0 auto; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+header p { margin: 0; color: var(--muted); font-size: 14px; }
+main { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px 24px 32px; max-width: 1280px; margin: 0 auto; }
+@media (max-width: 860px) { main { grid-template-columns: 1fr; padding: 12px 16px 24px; } header { padding: 16px 16px 4px; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.panel h2 { font-size: 15px; margin: 0 0 10px; }
+.files { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.files label { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line);
+               border-radius: 8px; cursor: pointer; }
+.files label:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.files .name { font-weight: 600; word-break: break-all; }
+.files .sub { color: var(--muted); font-size: 12px; }
+.drop { border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; color: var(--muted);
+        font-size: 13px; cursor: pointer; }
+.drop.over { border-color: var(--accent); color: var(--accent); }
+.settings { display: grid; gap: 10px; margin: 16px 0; font-size: 14px; }
+.settings label { display: grid; gap: 4px; }
+.settings select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line);
+                   background: var(--panel); color: var(--text); }
+.buttons { display: flex; gap: 8px; }
+button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line);
+         background: var(--panel); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); flex: 1; }
+button:disabled { opacity: .45; cursor: default; }
+#log { margin-top: 12px; color: var(--muted); font-size: 12px; min-height: 1.5em; word-break: break-all; }
+.viewer { position: relative; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 16 / 9; }
+.viewer canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+.viewer .empty { position: absolute; inset: 0; display: grid; place-items: center; color: #8a93a6; font-size: 14px; text-align: center; padding: 16px; }
+.bar { height: 6px; background: var(--chip); border-radius: 3px; margin: 10px 0 6px; overflow: hidden; }
+.bar > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.status { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.results { margin-top: 16px; }
+.results-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.results-head button { padding: 5px 10px; font-size: 13px; font-weight: 500; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; }
+tbody tr { cursor: pointer; }
+tbody tr:hover, tbody tr.sel { background: var(--chip); }
+td.time { font-weight: 600; white-space: nowrap; }
+td.num { font-size: 22px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
+td.full { font-size: 13px; color: var(--muted); }
+td img { height: 40px; border-radius: 3px; display: block; }
+.conf { font-size: 12px; white-space: nowrap; }
+.conf.hi { color: var(--ok); } .conf.lo { color: var(--warn); }
+.none { color: var(--muted); font-size: 14px; padding: 12px 0; }
+.note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+.scroll { overflow-x: auto; }
+@media (max-width: 560px) { td.full, th.full { display: none; } td.num { font-size: 18px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>LPR Analyzer — 動画から車番を検出</h1>
+  <p>MP4 を読み込み、通過した車のナンバーと時刻を一覧にします。読み込み・デコード・検出・認識・追跡・描画はすべてブラウザ内の C++（WebAssembly）で動き、動画はどこにも送信されません。</p>
+</header>
+<main>
+  <section class="panel">
+    <h2>1. 動画を選ぶ</h2>
+    <ul class="files" id="files"></ul>
+    <div class="drop" id="drop">MP4 をここにドロップ、またはクリックして追加
+      <input type="file" id="picker" accept="video/mp4,video/quicktime,.mp4,.mov" multiple hidden>
+    </div>
+    <div class="settings">
+      <label>全体スキャンの間隔
+        <select id="coarse">
+          <option value="1">1 秒ごと（1 fps）</option>
+          <option value="2" selected>2 秒ごと（0.5 fps）</option>
+          <option value="4">4 秒ごと（0.25 fps）</option>
+        </select>
+      </label>
+      <label>ナンバーを見つけた後の再解析
+        <select id="dense">
+          <option value="0.1">0.1 秒ごと（精度重視）</option>
+          <option value="0.2" selected>0.2 秒ごと</option>
+          <option value="0.5">0.5 秒ごと（速度重視）</option>
+        </select>
+      </label>
+      <label>全体スキャンの検出器
+        <select id="det">
+          <option value="640" selected>yolov8n 640（遠くのナンバーも拾う）</option>
+          <option value="320">yolov8n 320（4 倍速いが遠景に弱い）</option>
+        </select>
+      </label>
+    </div>
+    <div class="buttons">
+      <button class="primary" id="start" disabled>2. 解析スタート</button>
+      <button id="stop" disabled>停止</button>
+    </div>
+    <div id="log">モデルを読み込み中…</div>
+  </section>
+
+  <section class="panel">
+    <div class="viewer"><canvas id="view" width="1280" height="720"></canvas>
+      <div class="empty" id="empty">解析中のフレームがここに出ます<br>（枠とナンバーは C++ 側で描いています）</div></div>
+    <div class="bar"><div id="bar"></div></div>
+    <div class="status" id="status"></div>
+
+    <div class="results">
+      <div class="results-head"><h2>通過した車</h2><button id="csv" disabled>CSV で保存</button></div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>時刻</th><th>プレート</th><th>ナンバー</th><th class="full">読み取り全体</th><th>確度</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="none" id="none">まだありません。</div>
+      <p class="note">時刻は動画の先頭からの経過時間で、そのナンバーが最初に見えた時刻です。行をクリックすると、いちばんよく読めたときの場面を上に表示します。
+        4 桁の数字は高い確度で読めますが、地名・分類番号・ひらがなはまだ誤りが多めです。</p>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const view = $('view'), ctx = view.getContext('2d');
+const SAMPLE = { name: 'IMG_7121.mp4', sub: 'サンプル（交差点、19 秒、1080p）', url: 'samples/IMG_7121.mp4' };
+const files = [SAMPLE];
+let selected = 0, ready = false, busy = false;
+let results = new Map();   // id -> result (with pictures)
+let duration = 0;
+
+function renderFiles() {
+  const ul = $('files');
+  ul.innerHTML = '';
+  files.forEach((f, i) => {
+    const li = document.createElement('li');
+    const sub = f.file ? (f.file.size / 1048576).toFixed(1) + ' MB' : f.sub;
+    li.innerHTML = `<label><input type="radio" name="file" ${i === selected ? 'checked' : ''}>
+      <span><span class="name"></span><br><span class="sub"></span></span></label>`;
+    li.querySelector('.name').textContent = f.name;
+    li.querySelector('.sub').textContent = sub;
+    li.querySelector('input').onchange = () => { selected = i; };
+    ul.appendChild(li);
+  });
+}
+function addFiles(list) {
+  for (const f of list) {
+    files.push({ name: f.name, file: f });
+    selected = files.length - 1;
+  }
+  renderFiles();
+}
+$('drop').onclick = () => $('picker').click();
+$('picker').onchange = (e) => { addFiles(e.target.files); e.target.value = ''; };
+$('drop').ondragover = (e) => { e.preventDefault(); $('drop').classList.add('over'); };
+$('drop').ondragleave = () => $('drop').classList.remove('over');
+$('drop').ondrop = (e) => { e.preventDefault(); $('drop').classList.remove('over'); addFiles(e.dataTransfer.files); };
+renderFiles();
+
+const worker = new Worker('worker.js');
+worker.postMessage({ type: 'init' });
+
+function toCanvasImage(im) {
+  const c = document.createElement('canvas');
+  c.width = im.w; c.height = im.h;
+  c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(im.buf), im.w, im.h), 0, 0);
+  return c;
+}
+function fmt(t) { const m = Math.floor(t / 60); return String(m).padStart(2, '0') + ':' + (t - m * 60).toFixed(1).padStart(4, '0'); }
+
+function showStatus(s) {
+  duration = s.duration || duration;
+  const pct = duration ? Math.min(100, s.t / duration * 100) : 0;
+  $('bar').style.width = (s.done ? 100 : pct) + '%';
+  const parts = [`${fmt(s.t)} / ${fmt(duration)}`,
+                 `解析 ${s.analyzed} フレーム`,
+                 s.mode === 'full' ? '全体スキャン' : `追跡中の再解析（窓 ${s.rois}）`,
+                 `${s.ms.toFixed(0)} ms/フレーム`,
+                 `追跡中 ${s.tracks}`,
+                 `デコード: ${s.decoder}`];
+  $('status').innerHTML = '';
+  for (const p of parts) { const span = document.createElement('span'); span.textContent = p; $('status').appendChild(span); }
+}
+
+function renderResults() {
+  const list = [...results.values()].sort((a, b) => a.t - b.t);
+  const tb = $('rows');
+  tb.innerHTML = '';
+  $('none').style.display = list.length ? 'none' : '';
+  $('csv').disabled = !list.length;
+  for (const r of list) {
+    const tr = document.createElement('tr');
+    const cls = r.num_conf >= 0.9 ? 'hi' : r.num_conf < 0.75 ? 'lo' : '';
+    tr.innerHTML = `<td class="time"></td><td></td><td class="num"></td><td class="full"></td>
+      <td class="conf ${cls}"></td>`;
+    tr.children[0].textContent = fmt(r.t);
+    if (r.thumbCanvas) { const img = new Image(); img.src = r.thumbCanvas.toDataURL(); tr.children[1].appendChild(img); }
+    tr.children[2].textContent = r.number;
+    tr.children[3].textContent = r.text;
+    tr.children[4].textContent = `${Math.round(r.num_conf * 100)}% · ${r.frames} 回`;
+    tr.onclick = () => {
+      if (!r.snapCanvas) return;
+      for (const x of tb.children) x.classList.remove('sel');
+      tr.classList.add('sel');
+      $('empty').style.display = 'none';
+      view.width = r.snapCanvas.width; view.height = r.snapCanvas.height;
+      ctx.drawImage(r.snapCanvas, 0, 0);
+    };
+    tb.appendChild(tr);
+  }
+}
+
+$('csv').onclick = () => {
+  const list = [...results.values()].sort((a, b) => a.t - b.t);
+  const rows = [['time_s', 'time', 'number', 'region', 'class', 'hiragana', 'text', 'number_conf', 'frames']];
+  for (const r of list) rows.push([r.t.toFixed(2), fmt(r.t), r.number, r.region, r.cls, r.hira, r.text, r.num_conf.toFixed(3), r.frames]);
+  const csv = '﻿' + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = (files[selected].name.replace(/\.[^.]+$/, '') || 'plates') + '_plates.csv';
+  a.click();
+};
+
+function setBusy(b) {
+  busy = b;
+  $('start').disabled = b || !ready;
+  $('stop').disabled = !b;
+}
+
+$('start').onclick = async () => {
+  const f = files[selected];
+  results = new Map();
+  renderResults();
+  setBusy(true);
+  let blob = f.file;
+  if (!blob) {
+    $('log').textContent = 'サンプル動画を読み込み中…';
+    try { blob = f.blob || (f.blob = await (await fetch(f.url)).blob()); }
+    catch (e) { $('log').textContent = 'サンプルを取得できません: ' + e; setBusy(false); return; }
+  }
+  $('log').textContent = f.name + ' を解析中…';
+  worker.postMessage({ type: 'analyze', file: blob, name: f.name,
+    cfg: { coarse: +$('coarse').value, dense: +$('dense').value, full640: $('det').value === '640' } });
+};
+$('stop').onclick = () => worker.postMessage({ type: 'stop' });
+
+worker.onmessage = (e) => {
+  const m = e.data;
+  if (m.type === 'log') $('log').textContent = 'モデルを読み込み中… ' + m.text;
+  else if (m.type === 'ready') {
+    ready = true; setBusy(false);
+    $('log').textContent = '準備完了。動画を選んで「解析スタート」を押してください。' +
+      (m.webcodecs ? '' : '（このブラウザには WebCodecs が無いのでソフトウェアでデコードします）');
+  } else if (m.type === 'frame') {
+    $('empty').style.display = 'none';
+    if (view.width !== m.w || view.height !== m.h) { view.width = m.w; view.height = m.h; }
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(m.buf), m.w, m.h), 0, 0);
+    showStatus(m.state);
+  } else if (m.type === 'state') showStatus(m.state);
+  else if (m.type === 'results') {
+    for (const r of m.list) {
+      const old = results.get(r.id);
+      r.thumbCanvas = r.thumbImg ? toCanvasImage(r.thumbImg) : old && old.thumbCanvas;
+      r.snapCanvas = r.snapImg ? toCanvasImage(r.snapImg) : old && old.snapCanvas;
+      delete r.thumbImg; delete r.snapImg;
+      results.set(r.id, r);
+    }
+    // entries merged away inside C++ disappear from its list
+    const ids = new Set(m.list.map((r) => r.id));
+    for (const id of [...results.keys()]) if (!ids.has(id)) results.delete(id);
+    renderResults();
+  } else if (m.type === 'done' || m.type === 'stopped') {
+    showStatus(m.state);
+    setBusy(false);
+    $('log').textContent = (m.type === 'done' ? '解析完了: ' : '停止しました: ') +
+      `${results.size} 台、計算 ${(m.state.total_ms / 1000).toFixed(1)} 秒`;
+  } else if (m.type === 'error') {
+    setBusy(false);
+    $('log').textContent = 'エラー: ' + m.text;
+  }
+};
+</script>
+</body>
+</html>
