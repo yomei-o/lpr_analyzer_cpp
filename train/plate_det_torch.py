@@ -578,6 +578,10 @@ def main():
     ap.add_argument("--close-mosaic", type=int, default=10)
     ap.add_argument("--out", default="runs/scratch")
     ap.add_argument("--resume", default="")
+    ap.add_argument("--init-pt", default="", help="start from these weights (a state_dict saved by this script)")
+    ap.add_argument("--repeat", action="append", default=[],
+                    help="DIR:N  -- list the frames of DIR N times (oversample a small real set)")
+    ap.add_argument("--warmup-epochs", type=float, default=3.0)
     ap.add_argument("--max-hours", type=float, default=0, help="stop (and save) after this much wall time")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
@@ -589,6 +593,9 @@ def main():
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     tr_items, va_items = list_items(args.data), list_items([args.val])
+    for spec in args.repeat:
+        d, n = spec.rsplit(":", 1)
+        tr_items += list_items([d]) * int(n)
     print(f"train {len(tr_items)} frames, val {len(va_items)} frames, device {dev}", flush=True)
     tr_ds = DetData(tr_items, args.imgsz, True)
     va_ds = DetData(va_items, args.imgsz, False)
@@ -597,6 +604,9 @@ def main():
     va = torch.utils.data.DataLoader(va_ds, args.batch, shuffle=False, num_workers=args.workers, collate_fn=collate)
 
     model = YOLOv8(nc=1).to(dev)
+    if args.init_pt:
+        missing, unexpected = model.load_state_dict(torch.load(args.init_pt, map_location=dev), strict=False)
+        print("init from", args.init_pt, "missing", [k for k in missing if "num_batches" not in k], "unexpected", unexpected, flush=True)
     print("parameters:", sum(p.numel() for p in model.parameters()), flush=True)
     # SGD, no weight decay on BN / biases (standard practice)
     g_bn, g_w, g_b = [], [], []
@@ -616,7 +626,7 @@ def main():
     ema = EMA(model)
     crit = V8Loss(nc=1)
     nb = len(tr)
-    warm = max(3 * nb, 300)
+    warm = max(int(args.warmup_epochs * nb), 100)
     lf = lambda e: (1 - e / args.epochs) * (1 - 0.01) + 0.01  # noqa: E731  linear to lr*0.01
     start, best = 0, -1.0
     if args.resume and os.path.exists(args.resume):
