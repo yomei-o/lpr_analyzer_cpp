@@ -73,11 +73,72 @@ _orig_init = T.AlprSet.__init__
 _orig_load = T.AlprSet.load
 
 
+FLAT = take("--flat-labels", os.path.join(HERE, "alpr_labels_flat.tsv"))
+USE_FLAT = take("--use-flat", "1") == "1"
+
+
+def load_flat(spec, root):
+    """alpr_jp's 自家用(軽)/事業用/事業用(軽) crops sit in flat folders (no region folder), so the
+    original loader skips all 553 of them -- including every dark plate (事業用: white on green,
+    事業用(軽): yellow on black). train/alpr_labels_flat.tsv has the hand transcription of each."""
+    heads = spec.of_kind("head")
+    order = [g.name for g in heads]
+    reg = spec.head("region")
+    items, table = [], {}
+    for line in open(FLAT, encoding="utf-8"):
+        if line.startswith("#") or not line.strip():
+            continue
+        key, region, cls, hira, num = line.rstrip("\n").split("\t")
+        path = os.path.join(root, key)
+        if not os.path.exists(path):
+            continue
+        ridx = reg.tok.index(region) if region != "?" else -1
+        items.append((path, max(ridx, 0), key))
+        lab = {}
+        fake = "\t".join([key, cls, hira, num, ""])
+        tmp = load_table_line(spec, fake)
+        lab.update(tmp)
+        if ridx < 0:
+            lab[order.index("region")] = None      # unknown region: masked
+        table[key] = lab
+    return items, table
+
+
+def load_table_line(spec, line):
+    import tempfile
+    global LABELS
+    keep = LABELS
+    with tempfile.NamedTemporaryFile("w", suffix=".tsv", delete=False, encoding="utf-8") as f:
+        f.write(line + "\n")
+        name = f.name
+    LABELS = name
+    try:
+        t = load_table(spec)
+    finally:
+        LABELS = keep
+        os.unlink(name)
+    return next(iter(t.values()))
+
+
 def _init(self, root, spec, hold_out=0.2):
     _orig_init(self, root, spec, hold_out)
     self.full = load_table(spec)
     hit = sum(1 for it in self.items if it[2] in self.full)
     print("alpr_labels: %d of %d real crops have hand labels" % (hit, len(self.items)), flush=True)
+    if USE_FLAT and os.path.exists(FLAT):
+        fitems, ftable = load_flat(spec, root)
+        n0 = len(self.items)
+        self.items = self.items + fitems
+        self.full.update(ftable)
+        # same 80/20 split rule for the new crops, deterministic, appended after the original split
+        rng = np.random.default_rng(11)
+        idx = list(range(n0, len(self.items)))
+        rng.shuffle(idx)
+        cut = int(len(idx) * (1 - hold_out))
+        self.train_idx = sorted(self.train_idx + idx[:cut])
+        self.val_idx = sorted(self.val_idx + idx[cut:])
+        print("alpr flat folders: +%d crops (kei / commercial), %d train / %d hold-out in total"
+              % (len(fitems), len(self.train_idx), len(self.val_idx)), flush=True)
     self.lowres_rng = np.random.default_rng(7)
 
 
@@ -96,6 +157,9 @@ def _load(self, i, aug):
     x, heads, mask = _orig_load(self, i, aug)
     lab = self.full.get(self.items[i][2], {})
     for h, v in lab.items():
+        if v is None:               # region unknown for this crop: do not train that head on it
+            mask[h] = 0
+            continue
         heads[h] = v
         mask[h] = 1
     if isinstance(aug, tuple) and LOWRES_P > 0 and self.lowres_rng.random() < LOWRES_P:
@@ -181,7 +245,7 @@ def _batch_from(sets, weights, batch, rng, spec, pool=None):
         _PICK_PATCHED = True
         for st in sets:
             if isinstance(st, T.AlprSet):
-                comm = [i for i in st.train_idx if st.items[i][2].startswith("事業用")]
+                comm = [i for i in st.train_idx if st.items[i][2].startswith("事業用")]  # 事業用/ and 事業用(軽)/
                 base = st.pick
                 st.pick = (lambda r, c=comm, b=base: c[r.below(len(c))] if r.unit() < COMM_P else b(r))
                 print("commercial oversampling: %d crops at p=%.2f" % (len(comm), COMM_P), flush=True)
@@ -226,38 +290,46 @@ T.AlprSet.load = _load_legible
 
 
 def eval_onnx(path):
-    """Per-head accuracy of an exported recognizer on the real hold-out (hand labels as truth)."""
+    """Per-head accuracy of an exported recognizer on the real hold-out (hand labels as truth).
+    Reported separately for the region-folder crops (the original 144) and the flat-folder ones
+    (kei / commercial), so numbers from before the flat folders were added stay comparable."""
     import onnxruntime as ort
     spec = L.load(os.path.join(YOLO, "spec", "labels.txt"))
     ds = T.AlprSet(os.path.join(YOLO, "..", "alpr_jp"), spec)
     s = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
     names = [o.name for o in s.get_outputs()]
     order = [g.name for g in spec.of_kind("head")]
-    ok = {n: [0, 0] for n in order}
-    num_all = [0, 0]
-    for i in ds.val_idx:
-        x, heads, mask = _orig_load(ds, i, 0.0)
-        lab = ds.full.get(ds.items[i][2], {})
-        outs = s.run(None, {s.get_inputs()[0].name: x[None].astype(np.float32)})
-        pred = {n: int(np.argmax(o)) for n, o in zip(names, outs)}
-        truth = {0: heads[0]}
-        truth.update(lab)
-        for h, v in truth.items():
-            n = order[h]
-            key = n if n in pred else n + "_output"
-            p = pred.get(key, pred.get(n))
-            if p is None:
+    nums = [order.index(h) for h in ("plate_num_01", "plate_num_02", "plate_num_03", "plate_num_04")]
+    flat_prefix = ("自家用(軽)/", "事業用/", "事業用(軽)/")
+    for title, pick in (("region folders", lambda k: not k.startswith(flat_prefix)),
+                        ("kei / commercial (flat folders)", lambda k: k.startswith(flat_prefix))):
+        ok = {n: [0, 0] for n in order}
+        num_all = [0, 0]
+        for i in ds.val_idx:
+            key = ds.items[i][2]
+            if not pick(key):
                 continue
-            ok[n][0] += int(p == v)
-            ok[n][1] += 1
-        nums = [order.index(h) for h in ("plate_num_01", "plate_num_02", "plate_num_03", "plate_num_04")]
-        if all(h in lab for h in nums):
-            num_all[0] += int(all(pred.get(order[h], pred.get(order[h] + "_output")) == lab[h] for h in nums))
-            num_all[1] += 1
-    for n in order:
-        if ok[n][1]:
-            print("  %-14s %5.1f%%  (%d)" % (n, 100 * ok[n][0] / ok[n][1], ok[n][1]))
-    print("  4-digit serial all correct: %.1f%% (%d)" % (100 * num_all[0] / max(1, num_all[1]), num_all[1]))
+            x, heads, mask = _orig_load(ds, i, 0.0)
+            lab = dict(ds.full.get(key, {}))
+            outs = s.run(None, {s.get_inputs()[0].name: x[None].astype(np.float32)})
+            pred = {n: int(np.argmax(o)) for n, o in zip(names, outs)}
+            truth = {} if lab.get(0, 0) is None else {0: heads[0]}
+            truth.update({h: v for h, v in lab.items() if v is not None})
+            for h, v in truth.items():
+                n = order[h]
+                p = pred.get(n, pred.get(n + "_output"))
+                if p is None:
+                    continue
+                ok[n][0] += int(p == v)
+                ok[n][1] += 1
+            if all(h in truth for h in nums):
+                num_all[0] += int(all(pred.get(order[h], pred.get(order[h] + "_output")) == truth[h] for h in nums))
+                num_all[1] += 1
+        print("== " + title)
+        for n in order:
+            if ok[n][1]:
+                print("  %-14s %5.1f%%  (%d)" % (n, 100 * ok[n][0] / ok[n][1], ok[n][1]))
+        print("  4-digit serial all correct: %.1f%% (%d)" % (100 * num_all[0] / max(1, num_all[1]), num_all[1]))
 
 
 if __name__ == "__main__":
