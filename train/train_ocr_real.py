@@ -112,7 +112,7 @@ T.AlprSet.load = _load
 # (signs, bumpers, ...), so the analyzer cannot tell a misdetection from a plate. The `legible` head
 # (spec: no / yes) becomes that signal: negatives teach legible = no and nothing else (every other head
 # is masked), real plates teach legible = yes. Negatives are cut once at start-up and kept in memory.
-NEG_TSV = take("--neg", "")
+NEG_TSV = os.path.abspath(take("--neg", "")) if "--neg" in sys.argv else ""
 NEG_RANDOM = int(take("--neg-random", "0"))      # extra random 2:1 patches from these images (glob)
 NEG_RANDOM_GLOB = take("--neg-random-glob", "")
 NEG_P = float(take("--neg-p", "0.15"))           # share of each batch replaced by negatives
@@ -137,10 +137,14 @@ def load_negatives():
     if NEG_TSV:
         by_img = {}
         for line in open(NEG_TSV, encoding="utf-8"):
+            if line.startswith("#"):
+                continue
             p = line.rstrip("\n").split("\t")
             if len(p) >= 5:
                 by_img.setdefault(p[0], []).append(tuple(float(v) for v in p[1:5]))
         for path, boxes in by_img.items():
+            if not os.path.exists(path):                 # "alpr_jp/..." is relative to yolo_lpr_cpp's parent
+                path = os.path.join(YOLO, "..", path)
             rgb = I.load_rgb(path)
             for b in boxes:
                 c = _cut(rgb, b)
