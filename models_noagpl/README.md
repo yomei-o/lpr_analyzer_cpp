@@ -12,6 +12,7 @@ Ultralytics の `yolov8n.pt` から転移学習したもの（AGPL-3.0）、認�
 | `../docs/models_bsd/plate_ocr_scratch.onnx` | 認識器（11 head。最後の legible head が「ナンバーか」） |
 | `plate_det_scratch_640.onnx` / `_320.onnx` / `plate_ocr_scratch.onnx` | 1 回目の版（合成データだけ。記録用） |
 | `plate_det_scratch_best.pt` | 1 回目の検出器の PyTorch 重み（微調整の出発点） |
+| `plate_det_mix_best.pt` / `det_mix_train_log.csv` | デモの検出器の PyTorch 重み（微調整 40 epoch の best = epoch 33）と学習ログ |
 | `det_train_log.csv` | 1 回目の検出器の学習ログ |
 
 ## どう作ったか
