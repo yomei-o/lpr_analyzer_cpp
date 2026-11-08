@@ -207,6 +207,7 @@ struct Track {
   int id = 0;
   double t_first = 0, t_last = 0;
   jl::Box box{};
+  jl::Box first_box{};   // where the track started
   float vx = 0, vy = 0;  // px/s
   int frames = 0;
   std::vector<std::vector<double>> sum;  // [head][class], summed over the frames
@@ -214,6 +215,7 @@ struct Track {
   std::vector<float> conf;
   spec::Plate plate;
   float best_score = -1;
+  float best_legible = 0;  // highest P(legible = yes) among the sightings that voted
   double t_best = 0;
   Image thumb, snap;
 };
@@ -226,6 +228,7 @@ struct Result {
   std::string number;  // "12-34"
   std::vector<float> conf;
   Image thumb, snap;
+  jl::Box first_box{}, last_box{};  // where the plate was first / last seen (frame pixels), for merging
 };
 
 struct Models {
@@ -336,6 +339,7 @@ class Analyzer {
         nt.id = next_id_++;
         nt.t_first = t;
         nt.box = s.box;
+        nt.first_box = s.box;
         nt.t_last = t;
         tracks_.push_back(std::move(nt));
         used.push_back(1);
@@ -356,6 +360,7 @@ class Analyzer {
       s.track = tr.id;
       if (s.num_conf < 0.35f) continue;  // followed, but too blurred to vote
       tr.frames++;
+      tr.best_legible = std::max(tr.best_legible, s.legible);
       const auto& p = s.read.probs;
       if (tr.sum.size() != p.size()) tr.sum.assign(p.size(), {});
       const double w = 0.5 + s.num_conf;  // sharper sightings count a bit more
@@ -388,6 +393,7 @@ class Analyzer {
   void finish() {
     for (Track& tr : tracks_) close(tr);
     tracks_.clear();
+    drop_misreads();
   }
 
   // The frame scaled to display size with the search windows, boxes and numbers drawn on it.
@@ -482,6 +488,9 @@ class Analyzer {
     const float nc = number_conf(tr.conf);
     // one sharp sighting is enough; a vague plate needs company
     if (nc < cfg.min_num_conf || (tr.frames < 2 && nc < 0.85f)) return;
+    // seen once: also needs the recognizer to be fairly sure it is a plate at all (IMG_7121: a bus-stop
+    // sign at the frame edge, read once as 01-07 with legible 0.55)
+    if (tr.frames < 2 && cfg.min_legible > 0 && tr.best_legible < 0.8f) return;
     Result r;
     r.id = tr.id;
     r.t_first = tr.t_first;
@@ -491,6 +500,8 @@ class Analyzer {
     r.plate = tr.plate;
     r.number = number_display(tr.plate);
     r.conf = tr.conf;
+    r.last_box = tr.box;
+    r.first_box = tr.first_box;
     r.thumb = std::move(tr.thumb);
     r.snap = std::move(tr.snap);
     // the same plate lost for a moment and found again: one entry
@@ -509,6 +520,30 @@ class Analyzer {
         return;
       }
     results_.push_back(std::move(r));
+  }
+
+  // A plate misread for a frame or two gets a short track of its own next to the real one
+  // (IMG_7121 in Edge: 13-08 also appeared once as 11-08). An entry built from <= 2 sightings whose
+  // number differs from a much better-supported entry of about the same time in one digit only is
+  // that misreading: drop it.
+  void drop_misreads() {
+    auto one_off = [](const spec::Plate& a, const spec::Plate& b) {
+      if (a.disp.size() != b.disp.size()) return false;
+      int diff = 0;
+      for (size_t k = 0; k < a.disp.size(); ++k) diff += a.disp[k] != b.disp[k];
+      return diff > 0 && diff <= 1;   // UTF-8 '・' differs in more than one byte, so it never matches here
+    };
+    for (size_t i = 0; i < results_.size();) {
+      const Result& f = results_[i];
+      bool drop = false;
+      if (f.frames <= 2)
+        for (size_t j = 0; j < results_.size() && !drop; ++j) {
+          const Result& o = results_[j];
+          drop = j != i && o.frames >= 4 * f.frames && std::fabs(o.t_first - f.t_first) <= 3.0 && one_off(f.plate, o.plate);
+        }
+      if (drop) results_.erase(results_.begin() + (long)i);
+      else ++i;
+    }
   }
 
  public:
@@ -546,8 +581,9 @@ inline std::string result_json(const Result& r) {
   o += "\"region\":\"" + json_escape(r.plate.region) + "\",";
   o += "\"cls\":\"" + json_escape(r.plate.cls) + "\",";
   o += "\"hira\":\"" + json_escape(r.plate.hira) + "\",";
-  std::snprintf(b, sizeof b, "\"num_conf\":%.3f,\"region_conf\":%.3f,\"thumb\":[%d,%d],\"snap\":[%d,%d]}", number_conf(r.conf),
-                r.conf.empty() ? 0.f : r.conf[0], r.thumb.w, r.thumb.h, r.snap.w, r.snap.h);
+  std::snprintf(b, sizeof b, "\"num_conf\":%.3f,\"region_conf\":%.3f,\"thumb\":[%d,%d],\"snap\":[%d,%d],\"first_box\":[%.0f,%.0f,%.0f,%.0f]}",
+                number_conf(r.conf), r.conf.empty() ? 0.f : r.conf[0], r.thumb.w, r.thumb.h, r.snap.w, r.snap.h, r.first_box.x1,
+                r.first_box.y1, r.first_box.x2, r.first_box.y2);
   o += b;
   return o;
 }

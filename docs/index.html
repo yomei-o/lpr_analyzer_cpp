@@ -95,6 +95,12 @@ td img { height: 40px; border-radius: 3px; display: block; }
           <option value="0.25">0.25 秒ごと（4 fps、速度重視）</option>
         </select>
       </label>
+      <label>モデル
+        <select id="modelset">
+          <option value="bsd" selected>自前学習（BSD-3-Clause、ランダム初期化から学習）</option>
+          <option value="agpl">yolo_lpr_cpp の元モデル（検出器は AGPL-3.0）</option>
+        </select>
+      </label>
       <label>全体スキャンの検出器
         <select id="det">
           <option value="640" selected>yolov8n 640（遠くのナンバーも拾う）</option>
@@ -167,8 +173,18 @@ $('drop').ondragleave = () => $('drop').classList.remove('over');
 $('drop').ondrop = (e) => { e.preventDefault(); $('drop').classList.remove('over'); addFiles(e.dataTransfer.files); };
 renderFiles();
 
-const worker = new Worker('worker.js');
-worker.postMessage({ type: 'init' });
+let worker = null;
+function startWorker() {
+  if (worker) worker.terminate();
+  ready = false;
+  setBusy(false);
+  $('start').disabled = true;
+  $('log').textContent = 'モデルを読み込み中…';
+  worker = new Worker('worker.js');
+  worker.onmessage = onWorkerMessage;
+  worker.postMessage({ type: 'init', set: $('modelset').value });
+}
+$('modelset').onchange = startWorker;
 
 function toCanvasImage(im) {
   const c = document.createElement('canvas');
@@ -254,7 +270,7 @@ $('start').onclick = async () => {
 };
 $('stop').onclick = () => worker.postMessage({ type: 'stop' });
 
-worker.onmessage = (e) => {
+function onWorkerMessage(e) {
   const m = e.data;
   if (m.type === 'log') $('log').textContent = 'モデルを読み込み中… ' + m.text;
   else if (m.type === 'ready') {
@@ -288,7 +304,8 @@ worker.onmessage = (e) => {
     setBusy(false);
     $('log').textContent = 'エラー: ' + m.text;
   }
-};
+}
+startWorker();
 </script>
 </body>
 </html>

@@ -98,7 +98,8 @@ EMSCRIPTEN_KEEPALIVE int az_load_spec(const char* text) {
 }
 
 // coarse / dense intervals in seconds, full640: 1 = yolov8n 640 on full frames, 0 = 320
-EMSCRIPTEN_KEEPALIVE void az_config(double coarse, double dense, float min_num_conf, int full640) {
+EMSCRIPTEN_KEEPALIVE void az_config(double coarse, double dense, float min_num_conf, int full640, float min_legible) {
+  g_az.cfg.min_legible = min_legible;   // 0 = off; the BSD recognizer marks non-plates with legible = no
   if (coarse > 0) g_az.cfg.coarse_interval = coarse;
   if (dense > 0) g_az.cfg.dense_interval = dense;
   if (min_num_conf > 0) g_az.cfg.min_num_conf = min_num_conf;

@@ -73,14 +73,26 @@ function postResults() {
   post({ type: 'results', list }, transfer);
 }
 
-async function init() {
+// Two model sets (index.html lets the viewer choose):
+//   agpl -- the original yolo_lpr_cpp models (detector fine-tuned from Ultralytics yolov8n.pt: AGPL-3.0)
+//   bsd  -- trained here from random initialisation, BSD-3-Clause (models_noagpl/, train/)
+const MODELSETS = {
+  agpl: { dir: 'models/', det640: 'plate_det_v8n_640.onnx', det320: 'plate_det_v8n_320.onnx',
+          ocr: 'plate_ocr_v7_bal.onnx', minLegible: 0 },
+  bsd: { dir: 'models_bsd/', det640: 'plate_det_scratch_640.onnx', det320: 'plate_det_scratch_320.onnx',
+         ocr: 'plate_ocr_scratch.onnx', minLegible: 0.5 },
+};
+let MODELSET = MODELSETS.bsd;
+
+async function init(set) {
+  MODELSET = MODELSETS[set] || MODELSETS.bsd;
   self.importScripts('analyzer.js');
   M = await createAnalyzer({ locateFile: (f) => f });
   const models = [
-    [0, 'models/plate_det_v8n_640.onnx', '検出モデル 640'],
-    [1, 'models/plate_det_v8n_320.onnx', '検出モデル 320'],
-    [2, 'models/plate_ocr_v7_bal.onnx', '認識モデル'],
-    [3, 'models/plate_corner.onnx', '4隅補正モデル'],
+    [0, MODELSET.dir + MODELSET.det640, '検出モデル 640'],
+    [1, MODELSET.dir + MODELSET.det320, '検出モデル 320'],
+    [2, MODELSET.dir + MODELSET.ocr, '認識モデル'],
+    [3, 'models/plate_corner.onnx', '4隅補正モデル'],          // trained from random init: shared by both sets
   ];
   const bytes = await Promise.all(models.map((m) => fetchBytes(m[1], m[2])));
   const nodes = models.map((m, i) => loadModel(m[0], bytes[i]));
@@ -103,7 +115,7 @@ async function analyze(m) {
     const name = 'video.mp4';
     M.FS.mount(M.WORKERFS, { blobs: [{ name, data: m.file }] }, '/input');  // no copy: read straight from the File
     const c = m.cfg || {};
-    M._az_config(c.coarse || 0.5, c.dense || 0.2, 0, c.full640 === false ? 0 : 1);
+    M._az_config(c.coarse || 0.5, c.dense || 0.2, 0, c.full640 === false ? 0 : 1, MODELSET.minLegible || 0);
     const pp = M._malloc(64);
     M.stringToUTF8('/input/' + name, pp, 64);
     const ok = M._az_open(pp);
@@ -146,7 +158,7 @@ async function analyze(m) {
 
 self.onmessage = (e) => {
   const m = e.data;
-  if (m.type === 'init') init().catch((err) => post({ type: 'error', text: String((err && err.message) || err) }));
+  if (m.type === 'init') init(m.set).catch((err) => post({ type: 'error', text: String((err && err.message) || err) }));
   else if (m.type === 'analyze' && !running) analyze(m);
   else if (m.type === 'stop') stopRequested = true;
 };
