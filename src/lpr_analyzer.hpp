@@ -38,6 +38,9 @@ struct Config {
   float det_conf = 0.30f;         // full-frame detector threshold
   float roi_det_conf = 0.25f;     // window detector threshold
   float min_num_conf = 0.55f;     // mean confidence of the 4 number positions for a plate to count
+  // P(legible = yes) a sighting needs to count as a plate. 0 = off. The recognizers trained with
+  // negatives (train/train_ocr_real.py --neg) use this head to say "this is not a plate".
+  float min_legible = 0.f;
   bool tta = false;               // read small plates from 6 margins instead of 1 (6x the reading cost)
   int display_max_w = 1280;       // width of the picture handed to the page
   int thumb_h = 56;               // plate crop height in the result list
@@ -60,6 +63,12 @@ inline std::string number_display(const spec::Plate& p) {
 inline float number_conf(const std::vector<float>& conf) {
   if (conf.size() < 9) return 0.f;
   return (conf[5] + conf[6] + conf[7] + conf[8]) / 4.f;
+}
+
+// P(legible = yes) from the 11th head (spec: no / yes); 1 when the model has no such head.
+inline float legible_prob(const std::vector<std::vector<float>>& probs) {
+  if (probs.size() < 11 || probs[10].size() < 2) return 1.f;
+  return probs[10][1];
 }
 
 // ---------------------------------------------------------------- drawing
@@ -190,6 +199,7 @@ struct Sighting {
   jl::Box box;
   jl::Read read;
   float num_conf = 0;
+  float legible = 1;
   int track = 0;  // id of the track it went to (0: not tracked)
 };
 
@@ -295,6 +305,8 @@ class Analyzer {
         s.read = cfg.tta ? jl::read_plate_tta(*m.ocr, *m.spec, rgb, W, H, b.x1, b.y1, b.x2, b.y2)
                          : jl::read_plate_single(*m.ocr, *m.spec, rgb, W, H, b.x1, b.y1, b.x2, b.y2);
       s.num_conf = number_conf(s.read.conf);
+      s.legible = legible_prob(s.read.probs);
+      if (s.legible < cfg.min_legible) s.num_conf = 0.f;   // "not a plate": neither starts nor feeds a track
       last_.push_back(std::move(s));
     }
 

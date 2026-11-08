@@ -107,6 +107,105 @@ T.AlprSet.__init__ = _init
 T.AlprSet.load = _load
 
 
+# ---- negatives: things that are not a plate -------------------------------------------------------
+# A recognizer trained only on plates answers "a plate" with high confidence for anything it is shown
+# (signs, bumpers, ...), so the analyzer cannot tell a misdetection from a plate. The `legible` head
+# (spec: no / yes) becomes that signal: negatives teach legible = no and nothing else (every other head
+# is masked), real plates teach legible = yes. Negatives are cut once at start-up and kept in memory.
+NEG_TSV = take("--neg", "")
+NEG_RANDOM = int(take("--neg-random", "0"))      # extra random 2:1 patches from these images (glob)
+NEG_RANDOM_GLOB = take("--neg-random-glob", "")
+NEG_P = float(take("--neg-p", "0.15"))           # share of each batch replaced by negatives
+LEGIBLE = None
+
+
+def _cut(rgb, box, pad=0.25):
+    H, W = rgb.shape[:2]
+    x1, y1, x2, y2 = box
+    bw, bh = x2 - x1, y2 - y1
+    X1, Y1 = int(max(0, x1 - bw * pad)), int(max(0, y1 - bh * pad))
+    X2, Y2 = int(min(W, x2 + bw * pad)), int(min(H, y2 + bh * pad))
+    if X2 - X1 < 4 or Y2 - Y1 < 4:
+        return None
+    return rgb[Y1:Y2, X1:X2].copy(), (x1 - X1, y1 - Y1, x2 - X1, y2 - Y1)
+
+
+def load_negatives():
+    import glob
+    import infer as I
+    negs = []
+    if NEG_TSV:
+        by_img = {}
+        for line in open(NEG_TSV, encoding="utf-8"):
+            p = line.rstrip("\n").split("\t")
+            if len(p) >= 5:
+                by_img.setdefault(p[0], []).append(tuple(float(v) for v in p[1:5]))
+        for path, boxes in by_img.items():
+            rgb = I.load_rgb(path)
+            for b in boxes:
+                c = _cut(rgb, b)
+                if c:
+                    negs.append(c)
+    if NEG_RANDOM and NEG_RANDOM_GLOB:
+        rng = np.random.default_rng(5)
+        files = sorted(glob.glob(NEG_RANDOM_GLOB))
+        for k in range(NEG_RANDOM):
+            rgb = I.load_rgb(files[int(rng.integers(len(files)))])
+            H, W = rgb.shape[:2]
+            w = float(rng.uniform(40, min(400, W * 0.5)))
+            h = w * float(rng.uniform(0.4, 0.7))
+            x1, y1 = float(rng.uniform(0, W - w)), float(rng.uniform(0, H - h))
+            c = _cut(rgb, (x1, y1, x1 + w, y1 + h))
+            if c:
+                negs.append(c)
+    print("negatives: %d crops" % len(negs), flush=True)
+    return negs
+
+
+_orig_batch_from = T.batch_from
+NEGS = None
+
+
+def _batch_from(sets, weights, batch, rng, spec, pool=None):
+    global NEGS, LEGIBLE
+    x, y, m = _orig_batch_from(sets, weights, batch, rng, spec, pool)
+    if LEGIBLE is None:
+        LEGIBLE = [g.name for g in spec.of_kind("head")].index("legible")
+    if NEGS is None:
+        NEGS = load_negatives() if (NEG_TSV or NEG_RANDOM) else []
+    if not NEGS or NEG_P <= 0:
+        return x, y, m
+    import infer as I
+    g = np.random.default_rng()
+    k = int(g.binomial(batch, NEG_P))
+    for j in range(k):
+        img, (x1, y1, x2, y2) = NEGS[int(g.integers(len(NEGS)))]
+        margin = float(g.uniform(-0.04, 0.12))
+        v = I.crop_to_input(img, x1, y1, x2, y2, margin)[0]
+        x[j] = __import__("torch").from_numpy(v).float()
+        y[j] = 0
+        y[j, LEGIBLE] = 0           # "no"
+        m[j] = 0
+        m[j, LEGIBLE] = 1
+    return x, y, m
+
+
+T.batch_from = _batch_from
+
+_load_with_labels = T.AlprSet.load
+
+
+def _load_legible(self, i, aug):
+    x, heads, mask = _load_with_labels(self, i, aug)
+    li = len(heads) - 1                 # legible is the last head in spec order
+    heads[li] = 1                       # "yes": a real plate a person could read
+    mask[li] = 1
+    return x, heads, mask
+
+
+T.AlprSet.load = _load_legible
+
+
 def eval_onnx(path):
     """Per-head accuracy of an exported recognizer on the real hold-out (hand labels as truth)."""
     import onnxruntime as ort

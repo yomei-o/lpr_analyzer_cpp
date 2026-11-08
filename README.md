@@ -106,7 +106,8 @@ ffmpeg -i docs/samples/IMG_7121.mp4 -f rawvideo -pix_fmt rgb24 - | ./lpr_cli.exe
 
 ## ライセンス
 
-- このリポジトリのコード（`src/`, `docs/`, `tests/`）: 未定（LICENSE ファイルはまだ置いていない）
+- このリポジトリのコード（`src/`, `docs/`, `train/`, `tests/`）、手で書き起こしたラベル `train/alpr_labels.tsv`、ここでランダム初期化から学習したモデル `models_noagpl/`: **BSD 3-Clause**（`LICENSE`）
+- `docs/models/` の現行モデル: 検出器は Ultralytics の yolov8n.pt から転移学習したので **AGPL-3.0**、認識器は lpr_cpp（govtech パイプライン）の重み由来
 - `third_party/yolo_lpr/`: yolo_lpr_cpp（BSD 3-Clause、`third_party/yolo_lpr/LICENSE` と `THIRD_PARTY_NOTICES.md`）。モデルも同リポジトリのもの
 - `third_party/mediakit/codec/ffmpeg/`: FFmpeg 7.1.1（LGPL 2.1 以降）。mediakit_cpp が平坦化したもの
 - `third_party/mediakit/`: mediakit_cpp。`VideoDecoder::poll()` を 1 つ足してある（WebCodecs の非同期デコードを待つため）

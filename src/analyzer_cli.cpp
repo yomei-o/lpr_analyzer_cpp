@@ -65,6 +65,7 @@ int main(int argc, char** argv) {
   lpa::Analyzer az;
   az.cfg.coarse_interval = std::atof(arg_of(argc, argv, "--coarse", "0.5").c_str());
   az.cfg.dense_interval = std::atof(arg_of(argc, argv, "--dense", "0.2").c_str());
+  az.cfg.min_legible = (float)std::atof(arg_of(argc, argv, "--min-legible", "0").c_str());
   az.reset();
 
   std::vector<uint8_t> rgb((size_t)W * H * 3);
@@ -81,7 +82,7 @@ int main(int argc, char** argv) {
     std::fprintf(stderr, "t=%6.2f %s rois=%zu plates=%d tracks=%zu %.0f ms", t, az.last_was_full() ? "FULL" : "roi ", az.roi_count(), n,
                  az.tracks().size(), ms);
     for (const lpa::Sighting& s : az.last())
-      std::fprintf(stderr, " | #%d %.2f %s (%.2f)", s.track, s.box.score, s.read.plate.disp.c_str(), s.num_conf);
+      std::fprintf(stderr, " | #%d %.2f %s (%.2f L%.2f)", s.track, s.box.score, s.read.plate.disp.c_str(), s.num_conf, s.legible);
     std::fprintf(stderr, "\n");
     if (!out.empty()) {
       az.render(rgb.data(), W, H, disp);

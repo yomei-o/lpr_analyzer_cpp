@@ -1,5 +1,7 @@
 # AGPL・govtech 由来の重みを使わないモデル（実験版・デモには未採用）
 
+ライセンス: **BSD 3-Clause**（リポジトリの `LICENSE`）。
+
 デモ（`docs/models/`）のモデルは、検出器が Ultralytics の `yolov8n.pt` から転移学習したもの（AGPL-3.0）、
 認識器が lpr_cpp（govtech パイプライン）の重みから学習したもの。ここにあるのは、そのどちらも使わずに
 **ランダム初期化から**学習したもの。学習は 2026-11-08、Kaggle の T4。
