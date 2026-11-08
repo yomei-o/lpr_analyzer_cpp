@@ -57,6 +57,10 @@ Ultralytics の `yolov8n.pt` から転移学習したもの（AGPL-3.0）、認�
 
 ## 見つけた不具合（yolo_lpr_cpp 側）
 
+どれも yolo_lpr_cpp 本体で直した（2026-11-09、`63135f7`）。Droid の書体には無い字だけ GenSen から借りて描くようにし、
+`--alpr-labels spec/alpr_labels.tsv` で下の 553 枚と全 head のラベルが C++ / Python 両方の学習器で使えるようになった。
+ついでに、C++ の `read_alpr` の「軽」が簡体字「轻」のバイト列になっていたのも見つけて直した。
+
 - `fonts/DroidSansFallbackFull.ttf` には ASCII の数字が無い。`spec/fonts.txt` に入っているので、`jlpr gen` / `gen-det` の
   合成のおよそ半分で 4 桁と分類番号が豆腐（□）で描かれる
 - alpr_jp の `自家用(軽)/` `事業用/` `事業用(軽)/` は地名のフォルダに分かれていない（ファイルが直に置かれている）ので、
