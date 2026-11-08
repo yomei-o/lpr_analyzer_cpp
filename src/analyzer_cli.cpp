@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
   // --det640 / --det320: try other detectors (e.g. the from-scratch ones in train/) on the same video
   onx::Graph det640 = onx::load_onnx(arg_of(argc, argv, "--det640", (models + "/plate_det_v8n_640.onnx").c_str()));
   onx::Graph det320 = onx::load_onnx(arg_of(argc, argv, "--det320", (models + "/plate_det_v8n_320.onnx").c_str()));
-  onx::Graph ocr = onx::load_onnx(models + "/plate_ocr_v7_bal.onnx");
+  onx::Graph ocr = onx::load_onnx(arg_of(argc, argv, "--ocr", (models + "/plate_ocr_v7_bal.onnx").c_str()));
   onx::Graph corner = onx::load_onnx(models + "/plate_corner.onnx");
   FILE* sf = std::fopen((models + "/labels.txt").c_str(), "rb");
   if (!sf) {
