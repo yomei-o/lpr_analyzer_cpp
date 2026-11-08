@@ -518,7 +518,7 @@ def ap50(preds, gts):
     mpre = np.concatenate([[1], prec, [0]])
     mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))
     x = np.linspace(0, 1, 101)
-    return float(np.trapz(np.interp(x, mrec, mpre), x)), rec_hit / ngt
+    return float(np.trapezoid(np.interp(x, mrec, mpre), x)), rec_hit / ngt
 
 
 @torch.no_grad()
