@@ -116,6 +116,11 @@ NEG_TSV = os.path.abspath(take("--neg", "")) if "--neg" in sys.argv else ""
 NEG_RANDOM = int(take("--neg-random", "0"))      # extra random 2:1 patches from these images (glob)
 NEG_RANDOM_GLOB = take("--neg-random-glob", "")
 NEG_P = float(take("--neg-p", "0.15"))           # share of each batch replaced by negatives
+# Dark plates (事業用: white on green, 軽事業用: yellow on black) are 130 of the 720 real crops, and the
+# from-scratch recognizer read them badly (IMG_7121's taxi 96-99 came out as 6698 / 8669). Two levers:
+COMM_P = float(take("--commercial-p", "0"))      # share of real draws taken from the 事業用 folders
+INVERT_P = float(take("--invert-p", "0"))        # real crops shown colour-inverted (light-on-dark text)
+_PICK_PATCHED = False
 LEGIBLE = None
 
 
@@ -171,7 +176,15 @@ NEGS = None
 
 
 def _batch_from(sets, weights, batch, rng, spec, pool=None):
-    global NEGS, LEGIBLE
+    global NEGS, LEGIBLE, _PICK_PATCHED
+    if not _PICK_PATCHED and COMM_P > 0:
+        _PICK_PATCHED = True
+        for st in sets:
+            if isinstance(st, T.AlprSet):
+                comm = [i for i in st.train_idx if st.items[i][2].startswith("事業用")]
+                base = st.pick
+                st.pick = (lambda r, c=comm, b=base: c[r.below(len(c))] if r.unit() < COMM_P else b(r))
+                print("commercial oversampling: %d crops at p=%.2f" % (len(comm), COMM_P), flush=True)
     x, y, m = _orig_batch_from(sets, weights, batch, rng, spec, pool)
     if LEGIBLE is None:
         LEGIBLE = [g.name for g in spec.of_kind("head")].index("legible")
@@ -204,6 +217,8 @@ def _load_legible(self, i, aug):
     li = len(heads) - 1                 # legible is the last head in spec order
     heads[li] = 1                       # "yes": a real plate a person could read
     mask[li] = 1
+    if INVERT_P > 0 and isinstance(aug, tuple) and np.random.random() < INVERT_P:
+        x = (1.0 - x).astype(np.float32)
     return x, heads, mask
 
 
