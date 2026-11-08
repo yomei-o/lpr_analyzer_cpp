@@ -208,7 +208,7 @@ def tal_assign(pd_scores, pd_boxes, anc, gt_labels, gt_boxes, mask_gt, nc, topk=
     # anchors whose centre lies inside the gt box
     lt = anc.view(1, 1, A, 2) - gt_boxes[..., :2].unsqueeze(2)
     rb = gt_boxes[..., 2:].unsqueeze(2) - anc.view(1, 1, A, 2)
-    in_gt = torch.cat([lt, rb], -1).amin(-1).gt_(eps)                        # (B,M,A)
+    in_gt = torch.cat([lt, rb], -1).amin(-1) > eps                        # (B,M,A)
     valid = in_gt & mask_gt.bool()
     ious = box_iou_pairwise(gt_boxes, pd_boxes).clamp_(0)                   # (B,M,A)
     cls_idx = gt_labels.long().clamp(0, nc - 1)                             # (B,M)
