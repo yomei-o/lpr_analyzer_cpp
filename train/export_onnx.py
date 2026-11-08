@@ -34,9 +34,9 @@ def main():
             g.graph.initializer[i].CopyFrom(numpy_helper.from_array(new, t.name))
             used.add(t.name)
             replaced += 1
-        elif t.name.startswith("model."):
+        elif t.name.startswith("model.") and "/" not in t.name:   # "model.2/splitsz_14" are graph constants
             weight_like.append(t.name)
-    left = sorted(set(sd) - used)
+    left = sorted(set(sd) - used - {"model.22.dfl.conv.weight"})   # the graph has its own fixed 0..15 ramp
     print(f"replaced {replaced} tensors; graph-only model.* tensors: {weight_like}; state_dict-only: {left}")
     if weight_like or left:
         raise SystemExit("export: tensor sets differ")
