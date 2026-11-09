@@ -46,14 +46,14 @@ def main():
         items.append((p[0], [int(x) for x in p[1:12]]))
     if limit:
         items = items[:limit]
-    s = ort.InferenceSession(model, providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+    s = ort.InferenceSession(model, providers=["CPUExecutionProvider"])     # the graph has batch 1
     inp = s.get_inputs()[0].name
     outs = [o.name for o in s.get_outputs()]
     heads = [h for h in order if h in outs]
     ok = {h: 0 for h in heads}
     full = 0
     rs = {True: [0, 0], False: [0, 0]}
-    B = 64
+    B = 1
     for b in range(0, len(items), B):
         chunk = items[b:b + B]
         x = np.concatenate([I.crop_to_input(I.load_rgb(os.path.join(crops, k)), *boxes[k], 0.03)
