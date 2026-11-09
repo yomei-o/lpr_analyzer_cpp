@@ -1,9 +1,9 @@
-# AGPL・govtech 由来の重みを使わないモデル
+# AGPL と以前のモデルの重みを使わないモデル
 
 ライセンス: **BSD 3-Clause**（リポジトリの `LICENSE`）。
 
 デモの「自前学習」で使っているモデル（`docs/models_bsd/` と同じファイル）。yolo_lpr_cpp の元モデルは、検出器が
-Ultralytics の `yolov8n.pt` から転移学習したもの（AGPL-3.0）、認識器が lpr_cpp（govtech パイプライン）の重みから
+Ultralytics の `yolov8n.pt` から転移学習したもの（AGPL-3.0）、認識器が lpr_cpp の以前のモデルの重みから
 学習したもの。ここにあるのは、どちらも使わずに**ランダム初期化から**学習した。学習は 2026-11-08〜09、Kaggle の T4。
 
 | ファイル | 何か |
