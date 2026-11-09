@@ -117,7 +117,14 @@ ffmpeg -i docs/samples/IMG_7121.mp4 -f rawvideo -pix_fmt rgb24 - | ./lpr_cli.exe
 ## ライセンス
 
 - このリポジトリのコード（`src/`, `docs/`, `train/`, `tests/`）、手で書き起こしたラベル `train/alpr_labels.tsv`、ここでランダム初期化から学習したモデル `models_noagpl/`: **BSD 3-Clause**（`LICENSE`）
-- `docs/models/` の検出器: Ultralytics の yolov8n.pt から転移学習したので **AGPL-3.0**（認識器は両方のモデルとも `docs/models_bsd/plate_ocr_scratch.onnx`）
+- `docs/models/` の検出器: Ultralytics の yolov8n.pt から転移学習したので **AGPL-3.0**（認識器は両方のモデルとも `docs/models_bsd/plate_ocr_scratch.onnx`）。**デモで比較するためだけに置いている**ので、製品に組み込むときは使わない
+- 学習データの出典: [Open Images V7](https://storage.googleapis.com/openimages/web/index.html)（注釈 CC BY 4.0、画像 CC BY 2.0）、[dyama/alpr_jp](https://github.com/dyama/alpr_jp)（MIT）。重みにコピーレフトはかからないが、出典は表示する
+
+**商用で使うときの線引き**: `docs/models_bsd/` の検出器・認識器と `docs/models/plate_corner.onnx`（4隅補正）だけを使えば、
+モデルとこのリポジトリのコードはすべて BSD 3-Clause で、商用利用でき、ソースの公開義務もない。
+`docs/models/plate_det_v8n_*.onnx`（AGPL-3.0、比較用）は同梱しないこと。動画のデコードに使う FFmpeg は LGPL 2.1 で、
+自分のコードの公開義務はないが、FFmpeg 自身のソースの提供と、静的リンクなら再リンクできるようにすることが必要
+（ブラウザの WebCodecs やネイティブの OS デコーダだけを使えば FFmpeg 自体を外せる）
 - `third_party/yolo_lpr/`: yolo_lpr_cpp（BSD 3-Clause、`third_party/yolo_lpr/LICENSE` と `THIRD_PARTY_NOTICES.md`）。モデルも同リポジトリのもの
 - `third_party/mediakit/codec/ffmpeg/`: FFmpeg 7.1.1（LGPL 2.1 以降）。mediakit_cpp が平坦化したもの
 - `third_party/mediakit/`: mediakit_cpp。`VideoDecoder::poll()` を 1 つ足してある（WebCodecs の非同期デコードを待つため）
