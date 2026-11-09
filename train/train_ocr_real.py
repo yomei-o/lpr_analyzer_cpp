@@ -162,7 +162,10 @@ def _load(self, i, aug):
             continue
         heads[h] = v
         mask[h] = 1
-    if isinstance(aug, tuple) and LOWRES_P > 0 and self.lowres_rng.random() < LOWRES_P:
+    # evaluation passes the fixed (EVAL_MARGIN, 1, 1): no random downscale there, or the hold-out score
+    # moves +-2 points between identical weights and "best checkpoint" picks noise
+    is_eval = isinstance(aug, tuple) and aug == (T.EVAL_MARGIN, 1.0, 1.0)
+    if isinstance(aug, tuple) and not is_eval and LOWRES_P > 0 and self.lowres_rng.random() < LOWRES_P:
         x = _lowres(x, self.lowres_rng)
     return x, heads, mask
 
