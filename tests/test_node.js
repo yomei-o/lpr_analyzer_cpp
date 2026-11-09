@@ -23,7 +23,7 @@ const EXPECTED = ['12-09', '・・・9', '・・・6', '22-56', '13-08'];
   };
   load(0, 'plate_det_v8n_640.onnx');
   load(1, 'plate_det_v8n_320.onnx');
-  load(2, 'plate_ocr_v7_bal.onnx');
+  load(2, path.join('..', 'models_bsd', 'plate_ocr_scratch.onnx'));
   load(3, 'plate_corner.onnx');
   const spec = fs.readFileSync(path.join(docs, 'models', 'labels.txt'), 'utf8');
   const n = M.lengthBytesUTF8(spec) + 1, sp = M._malloc(n);

@@ -74,13 +74,13 @@ function postResults() {
 }
 
 // Two model sets (index.html lets the viewer choose):
-//   agpl -- the original yolo_lpr_cpp models (detector fine-tuned from Ultralytics yolov8n.pt: AGPL-3.0)
+//   agpl -- yolo_lpr_cpp's detectors (fine-tuned from Ultralytics yolov8n.pt: AGPL-3.0) + the BSD recognizer
 //   bsd  -- trained here from random initialisation, BSD-3-Clause (models_noagpl/, train/)
 const MODELSETS = {
   agpl: { dir: 'models/', det640: 'plate_det_v8n_640.onnx', det320: 'plate_det_v8n_320.onnx',
-          ocr: 'plate_ocr_v7_bal.onnx', minLegible: 0 },
+          ocr: 'models_bsd/plate_ocr_scratch.onnx', minLegible: 0.5 },
   bsd: { dir: 'models_bsd/', det640: 'plate_det_scratch_640.onnx', det320: 'plate_det_scratch_320.onnx',
-         ocr: 'plate_ocr_scratch.onnx', minLegible: 0.5 },
+         ocr: 'models_bsd/plate_ocr_scratch.onnx', minLegible: 0.5 },
 };
 let MODELSET = MODELSETS.bsd;
 
@@ -91,7 +91,7 @@ async function init(set) {
   const models = [
     [0, MODELSET.dir + MODELSET.det640, '検出モデル 640'],
     [1, MODELSET.dir + MODELSET.det320, '検出モデル 320'],
-    [2, MODELSET.dir + MODELSET.ocr, '認識モデル'],
+    [2, MODELSET.ocr, '認識モデル'],
     [3, 'models/plate_corner.onnx', '4隅補正モデル'],          // trained from random init: shared by both sets
   ];
   const bytes = await Promise.all(models.map((m) => fetchBytes(m[1], m[2])));

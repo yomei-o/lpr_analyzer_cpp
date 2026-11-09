@@ -18,7 +18,9 @@ GitHub Pages はリポジトリのルートから公開しています。ルー�
 | | 検出器 | 認識器 | ライセンス |
 |---|---|---|---|
 | **自前学習（既定）** | yolov8n をランダム初期化から学習（合成 ＋ Open Images ＋ 実写の確認済み箱） | ランダム初期化から学習（合成 ＋ alpr_jp 実写 1273 枚を手で書き起こし ＋ 負例） | **BSD-3-Clause** |
-| yolo_lpr_cpp の元モデル | Ultralytics の yolov8n.pt から転移学習 | lpr_cpp（govtech パイプライン）の重みから学習 | 検出器が **AGPL-3.0** |
+| yolo_lpr_cpp の検出器 | Ultralytics の yolov8n.pt から転移学習 | 自前学習と同じ（ランダム初期化から学習） | 検出器が **AGPL-3.0** |
+
+以前の「元モデル」の認識器（lpr_cpp の重み由来）は 2026-11-09 に削除しました。下の表の「元モデルの読み」はその削除前の記録です。
 
 サンプル動画（実在の 8 台）の結果。**自前学習は Edge でもネイティブでも 8 台すべて・誤り 0 件**。元モデルはネイティブで 8 台、Edge（WebCodecs のデコード）では 33-00 を落として 7 台:
 
@@ -115,7 +117,7 @@ ffmpeg -i docs/samples/IMG_7121.mp4 -f rawvideo -pix_fmt rgb24 - | ./lpr_cli.exe
 ## ライセンス
 
 - このリポジトリのコード（`src/`, `docs/`, `train/`, `tests/`）、手で書き起こしたラベル `train/alpr_labels.tsv`、ここでランダム初期化から学習したモデル `models_noagpl/`: **BSD 3-Clause**（`LICENSE`）
-- `docs/models/` の現行モデル: 検出器は Ultralytics の yolov8n.pt から転移学習したので **AGPL-3.0**、認識器は lpr_cpp（govtech パイプライン）の重み由来
+- `docs/models/` の検出器: Ultralytics の yolov8n.pt から転移学習したので **AGPL-3.0**（認識器は両方のモデルとも `docs/models_bsd/plate_ocr_scratch.onnx`）
 - `third_party/yolo_lpr/`: yolo_lpr_cpp（BSD 3-Clause、`third_party/yolo_lpr/LICENSE` と `THIRD_PARTY_NOTICES.md`）。モデルも同リポジトリのもの
 - `third_party/mediakit/codec/ffmpeg/`: FFmpeg 7.1.1（LGPL 2.1 以降）。mediakit_cpp が平坦化したもの
 - `third_party/mediakit/`: mediakit_cpp。`VideoDecoder::poll()` を 1 つ足してある（WebCodecs の非同期デコードを待つため）

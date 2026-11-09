@@ -7,7 +7,6 @@ here from random initialisation (models_noagpl/). Bundled third-party material k
   third_party/mediakit/         mediakit_cpp (same author); FFmpeg 7.1.1 inside it is LGPL-2.1-or-later
   third_party/yolo_lpr/         yolo_lpr_cpp (same author, BSD-3-Clause; see its THIRD_PARTY_NOTICES.md)
   docs/models/plate_det_*.onnx  detectors fine-tuned from Ultralytics yolov8n.pt: AGPL-3.0
-  docs/models/plate_ocr_*.onnx  recognizer derived from lpr_cpp's govtech-pipeline weights
   docs/samples/IMG_7121.mp4     sample video
 
 Copyright (c) 2026, yomei-o
