@@ -34,6 +34,11 @@ YOLO = os.path.abspath(take("--yolo-lpr", os.path.join(HERE, "..", "..", "yolo_l
 LABELS = take("--labels", os.path.join(HERE, "alpr_labels.tsv"))
 EVAL_ONNX = take("--eval-onnx", "")
 LOWRES_P = float(take("--lowres-p", "0.5"))
+# Share of real crops that teach the region head. The real set holds 63 of the 138 regions, and a
+# recogniser trained on it learns a shortcut: "looks like a real photo -> one of those 63". On IMG_7121
+# every wrong region was an alpr_jp one (葛飾 -> 島根, 松戸 -> 福山). Below 1 the region comes mostly
+# from the synthetic plates, which cover all 138; digits and kana still learn from the real crops.
+REAL_REGION_P = float(take("--real-region-p", "1.0"))
 sys.path.insert(0, os.path.join(YOLO, "tools"))
 os.chdir(YOLO)                      # train_ocr.py resolves models/ and spec/ relative to its repo
 import train_ocr as T  # noqa: E402
@@ -165,6 +170,8 @@ def _load(self, i, aug):
     # evaluation passes the fixed (EVAL_MARGIN, 1, 1): no random downscale there, or the hold-out score
     # moves +-2 points between identical weights and "best checkpoint" picks noise
     is_eval = isinstance(aug, tuple) and aug == (T.EVAL_MARGIN, 1.0, 1.0)
+    if not is_eval and REAL_REGION_P < 1.0 and self.lowres_rng.random() >= REAL_REGION_P:
+        mask[0] = 0
     if isinstance(aug, tuple) and not is_eval and LOWRES_P > 0 and self.lowres_rng.random() < LOWRES_P:
         x = _lowres(x, self.lowres_rng)
     return x, heads, mask
