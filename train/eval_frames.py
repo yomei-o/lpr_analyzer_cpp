@@ -21,7 +21,8 @@ def main():
     d = sys.argv[1]
     sp = L.load(os.path.join(HERE, "..", "..", "yolo_lpr_cpp", "spec", "labels.txt"))
     tok = {g.name: g.tok for g in sp.of_kind("head")}
-    rows = [l.rstrip("\n").split("\t") for l in open(os.path.join(d, "labels.tsv"), encoding="utf-8") if l.strip()]
+    rows = [l.rstrip("\n").split("\t") for l in open(os.path.join(d, "labels.tsv"), encoding="utf-8")
+            if l.strip() and not l.startswith("#")]
     xs = [np.asarray(Image.open(os.path.join(d, r[0])).convert("RGB"), dtype=np.float32).transpose(2, 0, 1)[None] / 255.0
           for r in rows]
     for m in sys.argv[2:]:
