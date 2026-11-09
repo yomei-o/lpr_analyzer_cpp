@@ -38,6 +38,10 @@ int main(int argc, char** argv) {
   const double fps = std::atof(arg_of(argc, argv, "--fps", "30").c_str());
   const std::string models = arg_of(argc, argv, "--models", "docs/models");
   const std::string out = arg_of(argc, argv, "--out", "");
+  // --dump DIR: every rectified recogniser input (128x128, exactly what the OCR saw) as dir/fFFFFF_K.png,
+  // with dir/index.tsv = file, track id, time. Scores any recogniser per frame instead of per car.
+  const std::string dump = arg_of(argc, argv, "--dump", "");
+  std::string dump_index;
 
   // --det640 / --det320: try other detectors (e.g. the from-scratch ones in train/) on the same video
   onx::Graph det640 = onx::load_onnx(arg_of(argc, argv, "--det640", (models + "/plate_det_v8n_640.onnx").c_str()));
@@ -84,6 +88,26 @@ int main(int argc, char** argv) {
     for (const lpa::Sighting& s : az.last())
       std::fprintf(stderr, " | #%d %.2f %s (%.2f L%.2f)", s.track, s.box.score, s.read.plate.disp.c_str(), s.num_conf, s.legible);
     std::fprintf(stderr, "\n");
+    if (!dump.empty()) {
+      int k = 0;
+      for (const lpa::Sighting& s : az.last()) {
+        ++k;
+        if (!s.cornered || s.track <= 0) continue;
+        std::vector<float> in = jl::warp_to_input(rgb.data(), W, H, s.quad, jl::CornerCfg().margin, 128);
+        std::vector<uint8_t> px((size_t)128 * 128 * 3);
+        for (int c = 0; c < 3; ++c)
+          for (int y = 0; y < 128; ++y)
+            for (int x = 0; x < 128; ++x)
+              px[((size_t)y * 128 + x) * 3 + c] =
+                  (uint8_t)std::clamp((int)std::lround(in[((size_t)c * 128 + y) * 128 + x] * 255.f), 0, 255);
+        char name[64];
+        std::snprintf(name, sizeof name, "f%05d_%d.png", (int)i, k);
+        stbi_write_png((dump + "/" + name).c_str(), 128, 128, 3, px.data(), 128 * 3);
+        char line[160];
+        std::snprintf(line, sizeof line, "%s\t%d\t%.2f\n", name, s.track, t);
+        dump_index += line;
+      }
+    }
     if (!out.empty()) {
       az.render(rgb.data(), W, H, disp);
       char p[512];
@@ -103,5 +127,12 @@ int main(int argc, char** argv) {
     }
   }
   std::printf("]\n");
+  if (!dump.empty()) {
+    FILE* f = std::fopen((dump + "/index.tsv").c_str(), "wb");
+    if (f) {
+      std::fwrite(dump_index.data(), 1, dump_index.size(), f);
+      std::fclose(f);
+    }
+  }
   return 0;
 }

@@ -201,6 +201,8 @@ struct Sighting {
   float num_conf = 0;
   float legible = 1;
   int track = 0;  // id of the track it went to (0: not tracked)
+  bool cornered = false;  // read through the 4-corner rectification; quad = the corners used
+  float quad[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 };
 
 struct Track {
@@ -301,9 +303,11 @@ class Analyzer {
       Sighting s;
       s.box = b;
       float corners[8];
-      if (m.corner && jl::predict_corners(*m.corner, rgb, W, H, b, ccfg, corners))
+      if (m.corner && jl::predict_corners(*m.corner, rgb, W, H, b, ccfg, corners)) {
         s.read = jl::read_plate_warped(*m.ocr, *m.spec, rgb, W, H, corners, ccfg);
-      else
+        s.cornered = true;
+        std::copy(corners, corners + 8, s.quad);
+      } else
         // one crop: the margin TTA of a still photo is replaced by voting over the frames of the track
         s.read = cfg.tta ? jl::read_plate_tta(*m.ocr, *m.spec, rgb, W, H, b.x1, b.y1, b.x2, b.y2)
                          : jl::read_plate_single(*m.ocr, *m.spec, rgb, W, H, b.x1, b.y1, b.x2, b.y2);
