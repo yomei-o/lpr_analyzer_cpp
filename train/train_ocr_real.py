@@ -120,7 +120,7 @@ def load_table_line(spec, line):
     return next(iter(t.values()))
 
 
-def _init(self, root, spec, hold_out=0.2):
+def _init(self, root, spec, hold_out=0.2, labels=""):   # labels: yolo_lpr_cpp's own --alpr-labels; this wrapper reads its own tables below
     _orig_init(self, root, spec, hold_out)
     self.full = load_table(spec)
     hit = sum(1 for it in self.items if it[2] in self.full)
