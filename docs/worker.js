@@ -78,9 +78,9 @@ function postResults() {
 //   bsd  -- trained here from random initialisation, BSD-3-Clause (models_noagpl/, train/)
 const MODELSETS = {
   agpl: { dir: 'models/', det640: 'plate_det_v8n_640.onnx', det320: 'plate_det_v8n_320.onnx',
-          ocr: 'models_bsd/plate_ocr_ft1.onnx', minLegible: 0.5 },
+          ocr: 'models_bsd/plate_ocr_syn1.onnx', minLegible: 0.5 },
   bsd: { dir: 'models_bsd/', det640: 'plate_det_scratch_640.onnx', det320: 'plate_det_scratch_320.onnx',
-         ocr: 'models_bsd/plate_ocr_ft1.onnx', minLegible: 0.5 },
+         ocr: 'models_bsd/plate_ocr_syn1.onnx', minLegible: 0.5 },
 };
 let MODELSET = MODELSETS.bsd;
 

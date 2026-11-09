@@ -23,7 +23,7 @@ const EXPECTED = ['12-09', '・・・9', '・・・6', '22-56', '13-08'];
   };
   load(0, 'plate_det_v8n_640.onnx');
   load(1, 'plate_det_v8n_320.onnx');
-  load(2, path.join('..', 'models_bsd', 'plate_ocr_ft1.onnx'));
+  load(2, path.join('..', 'models_bsd', 'plate_ocr_syn1.onnx'));
   load(3, 'plate_corner.onnx');
   const spec = fs.readFileSync(path.join(docs, 'models', 'labels.txt'), 'utf8');
   const n = M.lengthBytesUTF8(spec) + 1, sp = M._malloc(n);
@@ -31,7 +31,7 @@ const EXPECTED = ['12-09', '・・・9', '・・・6', '22-56', '13-08'];
   M._az_load_spec(sp);
 
   M.FS.writeFile('/in.mp4', fs.readFileSync(video));
-  M._az_config(0.5, 0.2, 0, 1, 0);
+  M._az_config(0.5, 0.2, 0, 1, 0.5);   // min_legible 0.5: what the page uses for the BSD model set
   const pp = M._malloc(16);
   M.stringToUTF8('/in.mp4', pp, 16);
   const state = () => JSON.parse(M.UTF8ToString(M._az_state()));
